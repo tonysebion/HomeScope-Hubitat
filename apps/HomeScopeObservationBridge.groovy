@@ -15,6 +15,9 @@ definition(
     author: "HomeScope",
     description: "Receives fixed, scalar, non-actuating advisory observations.",
     category: "Convenience",
+    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
+    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
+    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
     oauth: true,
     singleInstance: true,
     singleThreaded: true
