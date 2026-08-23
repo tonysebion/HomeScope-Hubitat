@@ -36,6 +36,11 @@ preserving separate read and publication credentials.
 8. Do not manually create a device from **HomeScope Observation Bridge Child**. The observation bridge creates
    only its own fixed, non-actuating child devices when a projection is explicitly registered.
 
+After installing or upgrading, open **HomeScope Read Connector** and verify it shows **Safe empty**, no effective
+device/evidence/event scope, and hidden credential details. Releases at or before 0.1.2 used legacy selection
+settings; 0.1.3 intentionally ignores and clears that authority, so the owner must choose a new profile and scope.
+Do not downgrade after saving the new profile because legacy code could reinterpret stale legacy settings.
+
 Stop after both app instances open and save without a compile error. Device selection, OAuth token handling, and
 live requests belong to a separate, deliberately limited qualification step.
 

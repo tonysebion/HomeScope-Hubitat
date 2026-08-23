@@ -14,9 +14,15 @@ The read connector and observation bridge intentionally remain separate apps wit
 The package does not include Maker API access, device commands, rule changes, generic proxying, or unattended
 self-update code.
 
-Version `0.1.2` has passed HomeScope's offline contract and safety tests. Its Observation Bridge and
-Observation Bridge Child sources have each passed an owner-controlled compile-only Save on Hubitat.
-Installation, authorization, device selection, and live requests remain separate owner-controlled steps.
+The `0.1.3` source candidate adds fail-closed owner profiles to the Read Connector, hides credential details by
+default, and removes unsupported empty app-icon declarations. It has passed HomeScope's offline contract and
+safety tests, but its exact Read Connector source has not yet passed the owner-controlled Hubitat compile/save
+check. The main HPM manifest therefore remains on `0.1.2` until that check succeeds. Installation,
+authorization, device selection, and live requests remain separate owner-controlled steps.
+
+After a future 0.1.3 update, existing Read Connector selections are intentionally not reused. The app starts in
+**Safe empty** and requires fresh owner approval. Do not downgrade after saving the new profile because older code
+could reinterpret legacy selection settings.
 
 ## Install
 

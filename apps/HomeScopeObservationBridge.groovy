@@ -17,10 +17,7 @@ definition(
     category: "Convenience",
     oauth: true,
     singleInstance: true,
-    singleThreaded: true,
-    iconUrl: "",
-    iconX2Url: "",
-    iconX3Url: ""
+    singleThreaded: true
 )
 
 preferences {
