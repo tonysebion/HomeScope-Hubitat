@@ -14,8 +14,9 @@ The read connector and observation bridge intentionally remain separate apps wit
 The package does not include Maker API access, device commands, rule changes, generic proxying, or unattended
 self-update code.
 
-Version `0.1.0` has passed HomeScope's offline contract and safety tests. Live Hubitat qualification remains an
-explicit owner-controlled step.
+Version `0.1.1` has passed HomeScope's offline contract and safety tests, and its Observation Bridge has passed
+an owner-controlled compile-only Save on Hubitat. Installation, authorization, device selection, and live
+requests remain separate owner-controlled steps.
 
 ## Install
 
