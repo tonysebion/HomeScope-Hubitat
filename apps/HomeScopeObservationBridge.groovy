@@ -8,11 +8,6 @@ import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import groovy.transform.Field
 import java.io.ByteArrayOutputStream
-import java.net.Inet6Address
-import java.net.InetAddress
-import java.nio.ByteBuffer
-import java.nio.charset.CodingErrorAction
-import java.nio.charset.StandardCharsets
 
 definition(
     name: "HomeScope Observation Bridge",
@@ -22,7 +17,10 @@ definition(
     category: "Convenience",
     oauth: true,
     singleInstance: true,
-    singleThreaded: true
+    singleThreaded: true,
+    iconUrl: "",
+    iconX2Url: "",
+    iconX3Url: ""
 )
 
 preferences {
@@ -351,10 +349,8 @@ private Map readInboundRequest() {
         if (rawBytes.length != contentLength || rawBytes.length > MAX_REQUEST_BYTES) {
             return rejected(413, "request_too_large")
         }
-        String raw = StandardCharsets.UTF_8.newDecoder()
-            .onMalformedInput(CodingErrorAction.REPORT)
-            .onUnmappableCharacter(CodingErrorAction.REPORT)
-            .decode(ByteBuffer.wrap(rawBytes)).toString()
+        String raw = new String(rawBytes, "UTF-8")
+        if (!isExactUtf8RoundTrip(rawBytes, raw)) return rejected(400, "malformed_json")
         if (hasDuplicateObjectKeys(raw)) return rejected(400, "duplicate_key")
         Object decoded = new JsonSlurper().parseText(raw)
         if (!(decoded instanceof Map)) return rejected(400, "malformed_json")
@@ -362,6 +358,16 @@ private Map readInboundRequest() {
     } catch (ignored) {
         return rejected(400, "malformed_json")
     }
+}
+
+private boolean isExactUtf8RoundTrip(byte[] rawBytes, String decoded) {
+    if (rawBytes == null || decoded == null) return false
+    byte[] encoded = decoded.getBytes("UTF-8")
+    if (encoded.length != rawBytes.length) return false
+    for (Integer index = 0; index < rawBytes.length; index += 1) {
+        if (encoded[index] != rawBytes[index]) return false
+    }
+    return true
 }
 
 private byte[] readBoundedRequestBytes() {
@@ -421,20 +427,7 @@ private boolean validHostPort(String suffix) {
 private boolean isPrivateAddress(String value) {
     if (!value) return false
     String address = value.trim().toLowerCase()
-    if (address.contains(":")) {
-        if (!(address ==~ /^[0-9a-f:]+$/)) return false
-        try {
-            InetAddress parsed = InetAddress.getByName(address)
-            if (!(parsed instanceof Inet6Address)) return false
-            byte[] bytes = parsed.address
-            Integer first = bytes[0] & 0xff
-            Integer second = bytes[1] & 0xff
-            return parsed.isLoopbackAddress() || (first & 0xfe) == 0xfc ||
-                (first == 0xfe && (second & 0xc0) == 0x80)
-        } catch (ignored) {
-            return false
-        }
-    }
+    if (address.contains(":")) return isPrivateIpv6Literal(address)
     List<String> parts = address.split(/\./, -1) as List<String>
     if (parts.size() != 4 || !parts.every { String item ->
         item ==~ /^[0-9]{1,3}$/ && (item == "0" || !item.startsWith("0"))
@@ -445,6 +438,32 @@ private boolean isPrivateAddress(String value) {
         (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31) ||
         (octets[0] == 192 && octets[1] == 168) ||
         (octets[0] == 169 && octets[1] == 254)
+}
+
+private boolean isPrivateIpv6Literal(String address) {
+    if (!address || !(address ==~ /^[0-9a-f:]+$/) || address.count("::") > 1) return false
+    List<String> groups = []
+    if (address.contains("::")) {
+        List<String> sides = address.split(/::/, -1) as List<String>
+        if (sides.size() != 2) return false
+        List<String> left = sides[0] ? (sides[0].split(/:/, -1) as List<String>) : []
+        List<String> right = sides[1] ? (sides[1].split(/:/, -1) as List<String>) : []
+        Integer missing = 8 - left.size() - right.size()
+        if (missing < 1) return false
+        groups.addAll(left)
+        missing.times { groups.add("0") }
+        groups.addAll(right)
+    } else {
+        groups = address.split(/:/, -1) as List<String>
+        if (groups.size() != 8) return false
+    }
+    if (groups.size() != 8 || !groups.every { String group -> group ==~ /^[0-9a-f]{1,4}$/ }) {
+        return false
+    }
+    List<Integer> hextets = groups.collect { String group -> Integer.parseInt(group, 16) }
+    boolean loopback = hextets.take(7).every { Integer group -> group == 0 } && hextets[7] == 1
+    Integer first = hextets[0]
+    return loopback || (first & 0xfe00) == 0xfc00 || (first & 0xffc0) == 0xfe80
 }
 
 private boolean hasDuplicateObjectKeys(String raw) {
@@ -706,14 +725,17 @@ private boolean validTypedId(Object value) {
 }
 
 private boolean exactScalarType(Object value, String expected) {
-    if (expected == "boolean") return value?.getClass() == Boolean
+    if (expected == "boolean") return value instanceof Boolean
     if (expected == "number") {
-        if (!(value?.getClass() in [Integer, Long, BigInteger, BigDecimal, Double, Float])) return false
+        boolean supportedNumber = value instanceof Integer || value instanceof Long ||
+            value instanceof BigInteger || value instanceof BigDecimal ||
+            value instanceof Double || value instanceof Float
+        if (!supportedNumber) return false
         if (value instanceof Double && !Double.isFinite(value as Double)) return false
         if (value instanceof Float && !Float.isFinite(value as Float)) return false
         return new BigDecimal(value.toString()).abs() <= MAX_NUMBER
     }
-    if (expected == "text") return value?.getClass() == String &&
+    if (expected == "text") return value instanceof String &&
         (value as String).size() >= 1 && (value as String).size() <= MAX_TEXT_LENGTH
     return false
 }
@@ -730,11 +752,13 @@ private boolean containsUnsafeContent(Map body) {
                 pending.add(key)
                 pending.add(value)
             }
-        } else if (current instanceof Collection || current?.getClass()?.isArray()) {
+        } else if (current instanceof Collection) {
             return true
         } else if (current instanceof String) {
             String text = current as String
             if (UNSAFE_TEXT.matcher(text).find() || ENCODED_TEXT.matcher(text).find()) return true
+        } else if (current != null && !(current instanceof Number) && !(current instanceof Boolean)) {
+            return true
         }
     }
     return false
