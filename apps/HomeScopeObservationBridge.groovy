@@ -420,40 +420,83 @@ private boolean validHostPort(String suffix) {
 private boolean isPrivateAddress(String value) {
     if (!value) return false
     String address = value.trim().toLowerCase()
-    if (address.contains(":")) return isPrivateIpv6Literal(address)
+    if (address.contains(":")) {
+        List<Integer> mappedIpv4 = mappedIpv4Octets(address)
+        if (mappedIpv4 != null) return isPrivateIpv4Octets(mappedIpv4)
+        return isPrivateIpv6Literal(address)
+    }
+    List<Integer> octets = parseIpv4Octets(address)
+    return octets != null && isPrivateIpv4Octets(octets)
+}
+
+private List<Integer> parseIpv4Octets(String address) {
+    if (!address) return null
     List<String> parts = address.split(/\./, -1) as List<String>
     if (parts.size() != 4 || !parts.every { String item ->
         item ==~ /^[0-9]{1,3}$/ && (item == "0" || !item.startsWith("0"))
-    }) return false
+    }) return null
     List<Integer> octets = parts.collect { String item -> item as Integer }
-    if (octets.any { Integer item -> item > 255 }) return false
+    if (octets.any { Integer item -> item > 255 }) return null
+    return octets
+}
+
+private boolean isPrivateIpv4Octets(List<Integer> octets) {
+    if (octets == null || octets.size() != 4) return false
     return octets[0] == 10 || octets[0] == 127 ||
         (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31) ||
         (octets[0] == 192 && octets[1] == 168) ||
         (octets[0] == 169 && octets[1] == 254)
 }
 
-private boolean isPrivateIpv6Literal(String address) {
-    if (!address || !(address ==~ /^[0-9a-f:]+$/) || address.count("::") > 1) return false
+private List<Integer> parseIpv6Hextets(String address) {
+    if (!address || !(address ==~ /^[0-9a-f:]+$/) || address.count("::") > 1) return null
     List<String> groups = []
     if (address.contains("::")) {
         List<String> sides = address.split(/::/, -1) as List<String>
-        if (sides.size() != 2) return false
+        if (sides.size() != 2) return null
         List<String> left = sides[0] ? (sides[0].split(/:/, -1) as List<String>) : []
         List<String> right = sides[1] ? (sides[1].split(/:/, -1) as List<String>) : []
         Integer missing = 8 - left.size() - right.size()
-        if (missing < 1) return false
+        if (missing < 1) return null
         groups.addAll(left)
         missing.times { groups.add("0") }
         groups.addAll(right)
     } else {
         groups = address.split(/:/, -1) as List<String>
-        if (groups.size() != 8) return false
+        if (groups.size() != 8) return null
     }
     if (groups.size() != 8 || !groups.every { String group -> group ==~ /^[0-9a-f]{1,4}$/ }) {
-        return false
+        return null
     }
-    List<Integer> hextets = groups.collect { String group -> Integer.parseInt(group, 16) }
+    return groups.collect { String group -> Integer.parseInt(group, 16) }
+}
+
+private List<Integer> mappedIpv4Octets(String address) {
+    if (!address || address.contains("%")) return null
+    String hexadecimal = address
+    List<Integer> dotted = null
+    if (address.contains(".")) {
+        Integer finalColon = address.lastIndexOf(":")
+        if (finalColon < 0 || address.substring(0, finalColon).contains(".")) return null
+        dotted = parseIpv4Octets(address.substring(finalColon + 1))
+        if (dotted == null) return null
+        hexadecimal = address.substring(0, finalColon) + ":0:0"
+    }
+    List<Integer> hextets = parseIpv6Hextets(hexadecimal)
+    if (hextets == null || !hextets.take(5).every { Integer group -> group == 0 } ||
+        hextets[5] != 0xffff) return null
+    if (dotted != null) return dotted
+    return [
+        (hextets[6] >> 8) & 0xff,
+        hextets[6] & 0xff,
+        (hextets[7] >> 8) & 0xff,
+        hextets[7] & 0xff
+    ]
+}
+
+private boolean isPrivateIpv6Literal(String address) {
+    List<Integer> hextets = parseIpv6Hextets(address)
+    if (hextets == null) return false
     boolean loopback = hextets.take(7).every { Integer group -> group == 0 } && hextets[7] == 1
     Integer first = hextets[0]
     return loopback || (first & 0xfe00) == 0xfc00 || (first & 0xffc0) == 0xfe80
