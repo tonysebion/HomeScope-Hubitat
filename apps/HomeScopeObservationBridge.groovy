@@ -292,47 +292,40 @@ def receiveObservation() {
     invalidateInactiveProjectionChildren(activeProjectionRegistry())
     Map inbound = readInboundRequest()
     if (!inbound.accepted) {
-        renderRejection(inbound.status as Integer, inbound.reason as String)
-        return
+        return renderRejection(inbound.status as Integer, inbound.reason as String)
     }
     Map body = inbound.body as Map
     Map verdict = validateRequest(body)
     if (!verdict.accepted) {
-        renderRejection(verdict.status as Integer, verdict.reason as String)
-        return
+        return renderRejection(verdict.status as Integer, verdict.reason as String)
     }
 
     Map replayVerdict = validateOrdering(body)
     if (!replayVerdict.accepted) {
-        renderRejection(replayVerdict.status as Integer, replayVerdict.reason as String)
-        return
+        return renderRejection(replayVerdict.status as Integer, replayVerdict.reason as String)
     }
     if (replayVerdict.replay) {
-        renderReceipt(body, replayVerdict.received_at as String)
-        return
+        return renderReceipt(body, replayVerdict.received_at as String)
     }
 
     String projectionId = body.projection_id as String
     def projection = getChildDevice(PROJECTION_REGISTRY[projectionId].dni as String)
     if (!projection) {
-        renderRejection(503, "bridge_target_unavailable")
-        return
+        return renderRejection(503, "bridge_target_unavailable")
     }
     String receivedAt = new Date().toInstant().toString()
     boolean published = publishObservation(
         projectionId, projection, body, receivedAt, verdict.actionable as Boolean
     )
     if (!published) {
-        renderRejection(503, "delivery_state_unknown")
-        return
+        return renderRejection(503, "delivery_state_unknown")
     }
 
     if (!commitRetainedObservation(body, receivedAt)) {
         failClosedActionable(projectionId, projection)
-        renderRejection(503, "delivery_state_unknown")
-        return
+        return renderRejection(503, "delivery_state_unknown")
     }
-    renderReceipt(body, receivedAt)
+    return renderReceipt(body, receivedAt)
 }
 
 private Map readInboundRequest() {
@@ -871,13 +864,13 @@ private Map rejected(Integer status, String reason) {
     return [accepted: false, status: status, reason: reason]
 }
 
-private void renderRejection(Integer status, String reason) {
-    render status: status, contentType: "application/json",
+private def renderRejection(Integer status, String reason) {
+    return render status: status, contentType: "application/json",
         data: JsonOutput.toJson([outcome: "rejected", reason: reason])
 }
 
-private void renderReceipt(Map body, String receivedAt) {
-    render status: 200, contentType: "application/json", data: JsonOutput.toJson([
+private def renderReceipt(Map body, String receivedAt) {
+    return render status: 200, contentType: "application/json", data: JsonOutput.toJson([
         contract_version: CONTRACT_VERSION,
         outcome: "accepted",
         projection_id: body.projection_id,

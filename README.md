@@ -14,11 +14,11 @@ The read connector and observation bridge intentionally remain separate apps wit
 The package does not include Maker API access, device commands, rule changes, generic proxying, or unattended
 self-update code.
 
-Version `0.1.5` keeps the fail-closed owner profiles and bounded Hubitat runtime identifiers from earlier
-releases. It renames the Read Connector's internal metadata handler to avoid Hubitat's reserved metadata DSL
-while preserving the fixed `/v1/metadata` GET route. The change adds no device command, configuration,
-event-delivery, or scope authority. Installation, authorization, device selection, and live requests remain
-separate owner-controlled steps.
+Version `0.1.6` keeps the fail-closed owner profiles and bounded Hubitat runtime identifiers from earlier
+releases. It returns the Observation Bridge's existing sanitized JSON receipt or rejection from every endpoint
+path so Hubitat sends the response body to HomeScope. The change adds no response field, device command,
+configuration, credential, publication, event-delivery, or scope authority. Installation, authorization,
+device selection, and live requests remain separate owner-controlled steps.
 
 After updating from a release before 0.1.3, existing Read Connector selections are intentionally not reused. The app starts in
 **Safe empty** and requires fresh owner approval. Do not downgrade after saving the new profile because older code
