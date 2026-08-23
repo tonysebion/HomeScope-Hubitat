@@ -22,19 +22,19 @@ metadata {
         attribute "observationOriginEcosystem", "STRING"
         attribute "observationOriginRepresentationId", "STRING"
         attribute "observationOriginObservationId", "STRING"
-        attribute "observationValue", "ENUM", ["constraint": ["true", "false"]]
+        attribute "observationValue", "ENUM", ["true", "false"]
         attribute "observationFreshness", "ENUM",
-            ["constraint": ["current", "aging", "stale", "expired", "unknown"]]
+            ["current", "aging", "stale", "expired", "unknown"]
         attribute "observationAvailability", "ENUM",
-            ["constraint": ["available", "unavailable", "unknown"]]
+            ["available", "unavailable", "unknown"]
         attribute "observationConfidence", "ENUM",
-            ["constraint": ["confirmed", "high", "medium", "low", "unknown"]]
+            ["confirmed", "high", "medium", "low", "unknown"]
         attribute "observationProvenance", "STRING"
         attribute "observationProvenanceRefs", "STRING"
         attribute "observationCoverageRef", "STRING"
         attribute "observationUncertainty", "STRING"
         attribute "observationContradiction", "ENUM",
-            ["constraint": ["none", "resolved", "open", "unknown"]]
+            ["none", "resolved", "open", "unknown"]
         attribute "observationObservedAt", "STRING"
         attribute "observationSourceEventAt", "STRING"
         attribute "observationDerivedAt", "STRING"
@@ -45,8 +45,8 @@ metadata {
         attribute "observationRegistrationPolicyId", "STRING"
         attribute "observationRegistrationPolicyVersion", "STRING"
         attribute "observationHealth", "ENUM",
-            ["constraint": ["available", "unavailable", "contradictory", "unknown"]]
-        attribute "observationIndependence", "ENUM", ["constraint": ["same-origin"]]
-        attribute "observationActionable", "ENUM", ["constraint": ["true", "false"]]
+            ["available", "unavailable", "contradictory", "unknown"]
+        attribute "observationIndependence", "ENUM", ["same-origin"]
+        attribute "observationActionable", "ENUM", ["true", "false"]
     }
 }

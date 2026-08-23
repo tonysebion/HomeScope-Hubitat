@@ -1,17 +1,17 @@
 {
   "packageName": "HomeScope",
   "author": "HomeScope",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "dateReleased": "2026-08-23",
-  "licenseFile": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.1/LICENSE",
-  "releaseNotes": "Hubitat compatibility update for the Observation Bridge: approved imports, reflection-free scalar validation, literal-only LAN address parsing, strict UTF-8 admission, and required app metadata.",
+  "licenseFile": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.2/LICENSE",
+  "releaseNotes": "Hubitat compatibility update for the Observation Bridge Child driver: ENUM attributes now use direct allowed-value lists accepted by Hubitat.",
   "documentationLink": "https://github.com/tonysebion/HomeScope-Hubitat/blob/main/docs/hubitat-package-installation.md",
   "apps": [
     {
       "id": "364e42a4-52c0-4a2a-9a0c-c3d6ceb23a3e",
       "name": "HomeScope Read Connector",
       "namespace": "homescope",
-      "location": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.1/apps/HomeScopeReadConnector.groovy",
+      "location": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.2/apps/HomeScopeReadConnector.groovy",
       "required": true,
       "oauth": true
     },
@@ -19,7 +19,7 @@
       "id": "4ca09fce-827a-4ebe-ac34-16966cb606a3",
       "name": "HomeScope Observation Bridge",
       "namespace": "homescope",
-      "location": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.1/apps/HomeScopeObservationBridge.groovy",
+      "location": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.2/apps/HomeScopeObservationBridge.groovy",
       "required": true,
       "oauth": true
     }
@@ -29,7 +29,7 @@
       "id": "715eb0c0-bd03-48a1-9f5e-17028c4b7ebd",
       "name": "HomeScope Observation Bridge Child",
       "namespace": "homescope",
-      "location": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.1/drivers/HomeScopeObservationBridgeChild.groovy",
+      "location": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.2/drivers/HomeScopeObservationBridgeChild.groovy",
       "required": true
     }
   ]
