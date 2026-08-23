@@ -14,9 +14,9 @@ The read connector and observation bridge intentionally remain separate apps wit
 The package does not include Maker API access, device commands, rule changes, generic proxying, or unattended
 self-update code.
 
-Version `0.1.6` keeps the fail-closed owner profiles and bounded Hubitat runtime identifiers from earlier
+Version `0.1.7` keeps the fail-closed owner profiles and bounded Hubitat runtime identifiers from earlier
 releases. It returns the Observation Bridge's existing sanitized JSON receipt or rejection from every endpoint
-path so Hubitat sends the response body to HomeScope. The change adds no response field, device command,
+path using Hubitat-compatible parenthesized render calls. The change adds no response field, device command,
 configuration, credential, publication, event-delivery, or scope authority. Installation, authorization,
 device selection, and live requests remain separate owner-controlled steps.
 

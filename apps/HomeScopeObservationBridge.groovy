@@ -865,17 +865,17 @@ private Map rejected(Integer status, String reason) {
 }
 
 private def renderRejection(Integer status, String reason) {
-    return render status: status, contentType: "application/json",
-        data: JsonOutput.toJson([outcome: "rejected", reason: reason])
+    return render(status: status, contentType: "application/json",
+        data: JsonOutput.toJson([outcome: "rejected", reason: reason]))
 }
 
 private def renderReceipt(Map body, String receivedAt) {
-    return render status: 200, contentType: "application/json", data: JsonOutput.toJson([
+    return render(status: 200, contentType: "application/json", data: JsonOutput.toJson([
         contract_version: CONTRACT_VERSION,
         outcome: "accepted",
         projection_id: body.projection_id,
         idempotency_id: body.idempotency_id,
         sequence: body.sequence,
         received_at: receivedAt
-    ])
+    ]))
 }
