@@ -20,7 +20,7 @@ preferences {
 }
 
 mappings {
-    path("/v1/metadata") { action: [GET: "metadata"] }
+    path("/v1/metadata") { action: [GET: "connectorMetadata"] }
     path("/v1/capabilities") { action: [GET: "capabilities"] }
     path("/v1/inventory") { action: [GET: "inventory"] }
     path("/v1/state") { action: [GET: "state"] }
@@ -335,7 +335,7 @@ private void ensureAccessToken() {
     }
 }
 
-def metadata() {
+def connectorMetadata() {
     Map selection = selectedDeviceSelection()
     String observedAt = isoTime()
     String coverageId = coverageIdFor("metadata")
