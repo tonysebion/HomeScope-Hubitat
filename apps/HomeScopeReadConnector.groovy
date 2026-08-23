@@ -7,12 +7,12 @@ definition(
     author: "HomeScope",
     description: "Owner-scoped, read-only Hubitat discovery for HomeScope's local collector.",
     category: "Convenience",
+    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
+    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
+    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
     singleInstance: false,
     singleThreaded: true,
-    oauth: true,
-    iconUrl: "",
-    iconX2Url: "",
-    iconX3Url: ""
+    oauth: true
 )
 
 preferences {
@@ -59,30 +59,70 @@ def mainPage() {
     dynamicPage(name: "mainPage", title: "HomeScope Read Connector", install: true, uninstall: true) {
         section("Owner-selected discovery scope") {
             input(
-                name: "selectedDevices",
-                type: "capability.*",
-                title: "Devices HomeScope may inspect",
-                description: "The default is empty. Select only the minimum devices needed.",
-                multiple: true,
-                required: false
-            )
-            input(
-                name: "selectedEvidence",
+                name: "scopeProfile",
                 type: "enum",
-                title: "Evidence categories HomeScope may inspect",
-                description: "The default is empty. Categories remain unavailable until selected here.",
-                options: evidenceCategoryOptions(),
-                multiple: true,
-                required: false
+                title: "HomeScope read profile",
+                description: "Safe empty is the fail-closed default. Profile changes require this owner page.",
+                options: [
+                    safe_empty: "Safe empty (no devices or evidence)",
+                    minimal_polling: "Minimal polling (selected-device inventory and state)",
+                    custom: "Custom owner-selected evidence"
+                ],
+                defaultValue: "safe_empty",
+                required: true,
+                submitOnChange: true
             )
+            String profile = activeScopeProfile()
+            if (profile == "minimal_polling" || profile == "custom") {
+                input(
+                    name: "profileSelectedDevices",
+                    type: "capability.*",
+                    title: "Devices HomeScope may inspect",
+                    description: "Select only the minimum devices needed.",
+                    multiple: true,
+                    required: false
+                )
+            }
+            if (profile == "custom") {
+                paragraph "Evidence categories are individually disabled by default. Enable only what is needed."
+                evidenceCategoryOptions().each { String category, String label ->
+                    String settingName = "customEvidence_${category}".toString()
+                    input(
+                        name: settingName,
+                        type: "bool",
+                        title: label,
+                        defaultValue: false,
+                        required: false,
+                        submitOnChange: true
+                    )
+                }
+                input(
+                    name: "applyCustomEvidenceSelection",
+                    type: "button",
+                    title: "Apply custom evidence selection"
+                )
+                paragraph "New custom evidence categories have no authority until you apply them here. " +
+                    "Turning a category off removes its authority immediately."
+            }
         }
         section("LAN-local OAuth credential") {
             paragraph "Enable OAuth for this app code. HomeScope's collector and live validation checkpoint " +
                 "must verify that the configured app-instance endpoint is private-LAN. This app cannot make " +
                 "Hubitat cloud endpoints unavailable."
             if (state.accessToken) {
-                paragraph "Local API base: ${getFullLocalApiServerUrl()}"
-                paragraph "Access token (copy only into the approved local secret store): ${state.accessToken}"
+                boolean revealCredential = state.revealCredentialOnce == true
+                state.remove("revealCredentialOnce")
+                if (revealCredential) {
+                    paragraph "Local API base: ${getFullLocalApiServerUrl()}"
+                    paragraph "Access token (copy only into the approved local secret store): ${state.accessToken}"
+                } else {
+                    paragraph "The local API base and access token are hidden. Reveal only when copying them locally."
+                    input(
+                        name: "revealAccessCredential",
+                        type: "button",
+                        title: "Reveal local API base and access token once"
+                    )
+                }
                 input(
                     name: "rotateAccessToken",
                     type: "button",
@@ -92,47 +132,55 @@ def mainPage() {
                 paragraph "The dedicated token is created when this app instance is installed."
             }
         }
-        section("Optional adjacent-LAN event delivery") {
-            paragraph "Event retention and delivery are disabled by default. Select only the few device attributes " +
-                "HomeScope needs; broad all-event subscriptions are intentionally unavailable."
-            input(
-                name: "eventSubscriptionsEnabled",
-                type: "bool",
-                title: "Retain explicitly selected device attributes",
-                defaultValue: false,
-                required: false
-            )
-            input(
-                name: "selectedEventDevices",
-                type: "capability.*",
-                title: "Event devices (maximum 16; must also be discovery-selected)",
-                multiple: true,
-                required: false
-            )
-            input(
-                name: "selectedEventAttributes",
-                type: "enum",
-                title: "Event attributes (maximum 8)",
-                options: eventAttributeOptions(),
-                multiple: true,
-                required: false
-            )
-            input(
-                name: "eventDeliveryEnabled",
-                type: "bool",
-                title: "Deliver owner-selected device events",
-                description: "Disabled by default. Polling remains the recovery path.",
-                defaultValue: false,
-                required: false
-            )
-            input(
-                name: "eventCallbackUrl",
-                type: "text",
-                title: "Fixed HomeScope callback URL",
-                description: "Exact HTTPS private-LAN URL ending /v1/hubitat/events. It is configured only here.",
-                required: false
-            )
-            paragraph "Delivery is opportunistic, one event at a time, and never accepts instructions in a response."
+        if (activeScopeProfile() == "custom") {
+            section("Optional adjacent-LAN event delivery") {
+                paragraph "Event retention and delivery are disabled by default. Select only the few device attributes " +
+                    "HomeScope needs; broad all-event subscriptions are intentionally unavailable."
+                input(
+                    name: "customEventSubscriptionsEnabled",
+                    type: "bool",
+                    title: "Retain explicitly selected device attributes",
+                    defaultValue: false,
+                    required: false,
+                    submitOnChange: true
+                )
+                if (settings?.customEventSubscriptionsEnabled == true) {
+                    input(
+                        name: "customEventDevices",
+                        type: "capability.*",
+                        title: "Event devices (maximum 16; must also be discovery-selected)",
+                        multiple: true,
+                        required: false
+                    )
+                    input(
+                        name: "customEventAttributes",
+                        type: "enum",
+                        title: "Event attributes (maximum 8)",
+                        options: eventAttributeOptions(),
+                        multiple: true,
+                        required: false
+                    )
+                    input(
+                        name: "customEventDeliveryEnabled",
+                        type: "bool",
+                        title: "Deliver owner-selected device events",
+                        description: "Disabled by default. Polling remains the recovery path.",
+                        defaultValue: false,
+                        required: false,
+                        submitOnChange: true
+                    )
+                    if (settings?.customEventDeliveryEnabled == true) {
+                        input(
+                            name: "customEventCallbackUrl",
+                            type: "text",
+                            title: "Fixed HomeScope callback URL",
+                            description: "Exact HTTPS private-LAN URL ending /v1/hubitat/events. It is configured only here.",
+                            required: false
+                        )
+                    }
+                }
+                paragraph "Delivery is opportunistic, one event at a time, and never accepts instructions in a response."
+            }
         }
         section("Safety boundary") {
             paragraph "This app exposes seven fixed inbound GET endpoints only. Optional owner-selected event " +
@@ -142,11 +190,19 @@ def mainPage() {
 }
 
 def installed() {
+    state.remove("revealCredentialOnce")
+    state.remove("approvedCustomEvidence")
+    state.remove("authorityScopeProfile")
+    clearLegacyAuthoritySettings()
+    activeScopeProfile()
     ensureAccessToken()
     configureEventDelivery()
 }
 
 def updated() {
+    state.remove("revealCredentialOnce")
+    clearLegacyAuthoritySettings()
+    activeScopeProfile()
     ensureAccessToken()
     configureEventDelivery()
 }
@@ -157,6 +213,8 @@ def uninstalled() {
     clearEventDeliveryState()
     clearEventHistory()
     state.remove("cursorRegistry")
+    state.remove("approvedCustomEvidence")
+    state.remove("authorityScopeProfile")
     if (state.accessToken) {
         revokeAccessToken()
         state.remove("accessToken")
@@ -164,6 +222,20 @@ def uninstalled() {
 }
 
 def appButtonHandler(String buttonName) {
+    state.remove("revealCredentialOnce")
+    if (buttonName == "revealAccessCredential") {
+        state.revealCredentialOnce = true
+        return
+    }
+    if (buttonName == "applyCustomEvidenceSelection") {
+        if (activeScopeProfile() == "custom") {
+            state.approvedCustomEvidence = candidateCustomEvidenceCategories()
+            state.authorityScopeProfile = "custom"
+        } else {
+            state.remove("approvedCustomEvidence")
+        }
+        return
+    }
     if (buttonName != "rotateAccessToken") {
         return
     }
@@ -182,7 +254,7 @@ private void configureEventDelivery() {
     clearEventDeliveryState()
     clearEventHistory()
     Map selection = selectedEventSubscriptionSelection()
-    if (!selection.enabled || !(selection.devices as List) || !(selection.attributes as List)) {
+    if (!selection.enabled || (selection.devices as List).isEmpty() || (selection.attributes as List).isEmpty()) {
         return
     }
     state.eventHistoryStartedAt = isoTime()
@@ -210,8 +282,51 @@ private void clearEventHistory() {
     state.remove("eventDeliveryRateState")
 }
 
+private void clearLegacyAuthoritySettings() {
+    [
+        "selectedDevices",
+        "selectedEvidence",
+        "eventSubscriptionsEnabled",
+        "selectedEventDevices",
+        "selectedEventAttributes",
+        "eventDeliveryEnabled",
+        "eventCallbackUrl"
+    ].each { String settingName -> app.removeSetting(settingName) }
+}
+
+private void reconcileScopeProfileAuthority(String profile) {
+    String prior = state.authorityScopeProfile instanceof CharSequence ?
+        state.authorityScopeProfile.toString() : null
+    if (prior != profile) {
+        state.remove("approvedCustomEvidence")
+        state.authorityScopeProfile = profile
+    }
+    if (profile != "custom") {
+        state.remove("approvedCustomEvidence")
+        return
+    }
+    List<String> approved = state.approvedCustomEvidence instanceof Collection ?
+        state.approvedCustomEvidence as List<String> : []
+    Set<String> candidates = candidateCustomEvidenceCategories() as Set<String>
+    Set<String> allowed = evidenceCategoryOptions().keySet()
+    List<String> pruned = approved.collect { String category -> category.toString() }
+        .findAll { String category -> allowed.contains(category) && candidates.contains(category) }
+        .unique()
+        .sort()
+    if (pruned.isEmpty()) {
+        state.remove("approvedCustomEvidence")
+    } else if (state.approvedCustomEvidence != pruned) {
+        state.approvedCustomEvidence = pruned
+    }
+}
+
 private boolean eventDeliveryConfigured() {
-    return settings?.eventDeliveryEnabled == true && safeEventCallbackUrl(settings?.eventCallbackUrl) != null
+    Map selection = selectedEventSubscriptionSelection()
+    return selection.enabled == true &&
+        !(selection.devices as List).isEmpty() &&
+        !(selection.attributes as List).isEmpty() &&
+        settings?.customEventDeliveryEnabled == true &&
+        safeEventCallbackUrl(settings?.customEventCallbackUrl) != null
 }
 
 private void ensureAccessToken() {
@@ -412,7 +527,8 @@ def events() {
             evidence_refs: []
         ])
     }
-    if (!eventSelection.enabled || !(eventSelection.devices as List) || !(eventSelection.attributes as List)) {
+    if (!eventSelection.enabled || (eventSelection.devices as List).isEmpty() ||
+        (eventSelection.attributes as List).isEmpty()) {
         limitations.add([
             code: "events.subscription-not-selected",
             message: "No bounded owner-selected device and attribute subscription is active.",
@@ -441,13 +557,14 @@ def events() {
     }
     String coverageId = coverageIdFor("events")
     String observedAt = isoTime()
-    String firstTime = returnedEvents ? returnedEvents.first().source_event_at : null
-    String lastTime = returnedEvents ? returnedEvents.last().source_event_at : null
+    String firstTime = returnedEvents.isEmpty() ? null : returnedEvents.first().source_event_at
+    String lastTime = returnedEvents.isEmpty() ? null : returnedEvents.last().source_event_at
     List<Map> gaps = []
     String configuredBoundary = state.eventHistoryStartedAt instanceof CharSequence ?
         state.eventHistoryStartedAt.toString() : null
-    String retentionBoundary = state.eventHistoryTruncated == true && eventHistory() ?
-        eventHistory().first().source_event_at.toString() : configuredBoundary
+    List<Map> retainedHistory = eventHistory()
+    String retentionBoundary = state.eventHistoryTruncated == true && !retainedHistory.isEmpty() ?
+        retainedHistory.first().source_event_at.toString() : configuredBoundary
     String returnedFrom = retentionBoundary == null || retentionBoundary > requestWindow.to ? null :
         retentionBoundary > requestWindow.from ? retentionBoundary : requestWindow.from
     if (limitTruncated && firstTime != null) {
@@ -464,7 +581,7 @@ def events() {
     Map window = baseRecord("hubitat.event-window", "event-window.${app.id}", "event-window.${app.id}", observedAt, coverageId)
     window.requested = [from: requestWindow.from, to: requestWindow.to]
     window.returned = returnedFrom == null ? null : [from: returnedFrom, to: requestWindow.to]
-    window.ordering = returnedEvents ? "source-time" : "unknown"
+    window.ordering = returnedEvents.isEmpty() ? "unknown" : "source-time"
     window.truncated = state.eventHistoryTruncated == true || limitTruncated || unknownIngestionGap ||
         deliveryDropped > 0L || deliveryCoalesced > 0L
     window.gaps = gaps
@@ -479,7 +596,7 @@ def events() {
     window.first_source_event_at = firstTime
     window.last_source_event_at = lastTime
     window.duplicate_count = 0
-    window.reordered = returnedEvents ? arrivalReturnedIds != returnedIds : null
+    window.reordered = returnedEvents.isEmpty() ? null : arrivalReturnedIds != returnedIds
     return discoveryEnvelope(
         "events", "events", "selected-devices", selection, [window] + returnedEvents, true, limitations, requestWindow
     )
@@ -604,6 +721,11 @@ private boolean admitEventDeliveryRate() {
 }
 
 private void deliverEventEnvelope(Map envelope, int attempt) {
+    if (!eventDeliveryConfigured()) {
+        incrementEventCounter("eventDeliveryDroppedCount")
+        clearEventDeliveryState()
+        return
+    }
     String body = new JsonBuilder(envelope).toString()
     if (body.getBytes("UTF-8").length > MAX_EVENT_DELIVERY_BYTES) {
         incrementEventCounter("eventDeliveryDroppedCount")
@@ -617,7 +739,7 @@ private void deliverEventEnvelope(Map envelope, int attempt) {
         asynchttpPost(
             "eventDeliveryResponse",
             [
-                uri: safeEventCallbackUrl(settings?.eventCallbackUrl),
+                uri: safeEventCallbackUrl(settings?.customEventCallbackUrl),
                 headers: [Authorization: "Bearer ${state.accessToken}", "Content-Type": "application/json"],
                 body: body,
                 timeout: 5,
@@ -774,16 +896,17 @@ private Map eventAttributeOptions() {
 }
 
 private Map selectedEventSubscriptionSelection() {
+    boolean customProfile = activeScopeProfile() == "custom"
     Map discoverySelection = selectedDeviceSelection()
     Set<String> admittedDiscoveryIds = (discoverySelection.devices as List).collect { device -> device.id.toString() } as Set
-    Object selected = settings?.selectedEventDevices
+    Object selected = settings?.customEventDevices
     Collection requested = selected instanceof Collection ? selected as Collection : selected ? [selected] : []
     List requestedDevices = requested.findAll { device -> device != null }
         .unique { device -> device.id.toString() }
     List devices = requestedDevices.findAll { device ->
         device != null && admittedDiscoveryIds.contains(device.id.toString())
     }.sort { left, right -> left.id.toString() <=> right.id.toString() }
-    Object selectedAttributes = settings?.selectedEventAttributes
+    Object selectedAttributes = settings?.customEventAttributes
     List<String> rawAttributes = selectedAttributes instanceof Collection ? selectedAttributes as List :
         selectedAttributes ? [selectedAttributes.toString()] : []
     Set<String> allowed = eventAttributeOptions().keySet()
@@ -791,8 +914,13 @@ private Map selectedEventSubscriptionSelection() {
         .findAll { value -> allowed.contains(value) }
         .unique()
         .sort()
+    boolean enabled = customProfile &&
+        settings?.customEventSubscriptionsEnabled == true &&
+        evidenceSelected("events") &&
+        !devices.isEmpty() &&
+        !attributes.isEmpty()
     return [
-        enabled: settings?.eventSubscriptionsEnabled == true && evidenceSelected("events"),
+        enabled: enabled,
         devices: devices.take(MAX_EVENT_SUBSCRIPTION_DEVICES),
         attributes: attributes.take(MAX_EVENT_SUBSCRIPTION_ATTRIBUTES),
         device_overflow: devices.size() > MAX_EVENT_SUBSCRIPTION_DEVICES,
@@ -802,13 +930,36 @@ private Map selectedEventSubscriptionSelection() {
 }
 
 private List<String> selectedEvidenceCategories() {
-    Object selected = settings?.selectedEvidence
-    List<String> values = selected instanceof Collection ? selected as List : selected ? [selected.toString()] : []
+    String profile = activeScopeProfile()
+    if (profile == "safe_empty") {
+        return []
+    }
+    if (profile == "minimal_polling") {
+        return ["inventory", "state"]
+    }
+    List<String> approved = state.approvedCustomEvidence instanceof Collection ?
+        state.approvedCustomEvidence as List<String> : []
     Set<String> allowed = evidenceCategoryOptions().keySet()
-    return values.collect { String value -> value.toString() }
-        .findAll { String value -> allowed.contains(value) }
+    return approved.collect { String category -> category.toString() }
+        .findAll { String category -> allowed.contains(category) }
         .unique()
         .sort()
+}
+
+private List<String> candidateCustomEvidenceCategories() {
+    return evidenceCategoryOptions().keySet().findAll { String category ->
+        String settingName = "customEvidence_${category}".toString()
+        settings[settingName] == true
+    }.collect { String category -> category }.sort()
+}
+
+private String activeScopeProfile() {
+    Object selected = settings?.scopeProfile
+    String profile = selected instanceof CharSequence ? selected.toString() : "safe_empty"
+    String active = profile == "safe_empty" || profile == "minimal_polling" || profile == "custom" ?
+        profile : "safe_empty"
+    reconcileScopeProfileAuthority(active)
+    return active
 }
 
 private boolean evidenceSelected(String category) {
@@ -948,7 +1099,10 @@ private Map outboundEventRecord(Map record) {
 }
 
 private Map selectedDeviceSelection() {
-    Object selected = settings?.selectedDevices
+    if (activeScopeProfile() == "safe_empty") {
+        return [devices: [], selected_count: 0, admitted_count: 0, overflow: false]
+    }
+    Object selected = settings?.profileSelectedDevices
     Collection devices = selected instanceof Collection ? selected as Collection : selected ? [selected] : []
     List admitted = []
     int selectedCount = 0
