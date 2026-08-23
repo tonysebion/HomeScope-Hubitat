@@ -653,10 +653,12 @@ private Map admittedSubscriptionEvent(evt) {
     }
     String observedAt = isoTime()
     String eventNativeId = boundedText(evt.id)
+    String recordSuffix = eventNativeId ?
+        "event.${eventNativeId}" : newRuntimeId("event", "eventIdSequence")
     String subjectId = safeId(evt.deviceId, "device")
     Map record = baseRecord(
         "hubitat.event",
-        "event.${eventNativeId ?: UUID.randomUUID()}",
+        recordSuffix,
         eventNativeId,
         observedAt,
         coverageIdFor("events")
@@ -696,7 +698,7 @@ private void sendEventDelivery(Map eventRecord, int attempt) {
     Map envelope = [
         contract_version: CONTRACT_VERSION,
         connector_id: CONNECTOR_ID,
-        delivery_id: safeId("delivery.${app.id}.${UUID.randomUUID()}", "delivery.event"),
+        delivery_id: newRuntimeId("delivery", "deliveryIdSequence"),
         sent_at: sentAt,
         event: outboundEventRecord(eventRecord)
     ]
@@ -2108,7 +2110,7 @@ private Map parseCursor(String operation, String scopeDescriptor, Object rawCurs
 
 private String issueCursor(String operation, String scopeDescriptor, String snapshot, int offset, int page) {
     Map registry = cursorRegistry()
-    String token = UUID.randomUUID().toString().toLowerCase()
+    String token = newCursorToken()
     registry[token] = [
         operation: operation,
         scope_descriptor: scopeDescriptor,
@@ -2256,7 +2258,33 @@ private String coverageIdFor(String operation) {
 }
 
 private String newSnapshotId() {
-    return safeId("hubitat.snapshot.${app.id}.${UUID.randomUUID()}", "hubitat.snapshot")
+    return newRuntimeId("hubitat.snapshot", "snapshotSequence")
+}
+
+private String newRuntimeId(String kind, String sequenceKey) {
+    long sequence = nextRuntimeSequence(sequenceKey)
+    String suffix = "${now()}.${sequence}"
+    String prefix = safeId("${kind}.${app.id}", kind)
+    int prefixLimit = Math.max(1, 127 - suffix.length())
+    return "${prefix.take(prefixLimit)}.${suffix}"
+}
+
+private String newCursorToken() {
+    long sequence = nextRuntimeSequence("cursorSequence")
+    long currentTimeMs = now()
+    String appPart = (safeId(app.id, "0").replaceAll(/[^0-9a-f]/, "") + "00000000").take(8)
+    String timePart = ("0000000000000000${currentTimeMs}").takeRight(16)
+    String sequencePart = ("000000${sequence}").takeRight(6)
+    String material = "${appPart}${timePart}${sequencePart}"
+    return "${material.take(8)}-${material.substring(8, 12)}-4${material.substring(12, 15)}-" +
+        "8${material.substring(15, 18)}-${material.substring(18, 30)}"
+}
+
+private long nextRuntimeSequence(String stateKey) {
+    long prior = state[stateKey] instanceof Number ? state[stateKey] as long : -1L
+    long sequence = prior >= 0L && prior < 999999L ? prior + 1L : 0L
+    state[stateKey] = sequence
+    return sequence
 }
 
 private String safeId(Object raw, String fallback) {
