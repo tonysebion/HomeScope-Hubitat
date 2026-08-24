@@ -53,6 +53,7 @@ mappings {
 @Field static final BigDecimal MAX_NUMBER = new BigDecimal("1000000000")
 @Field static final String CONTRACT_VERSION = "1.0.0"
 @Field static final String COVERAGE_REF = "coverage.projection"
+@Field static final String TIMESTAMP_WIRE_PREFIX = "rfc3339:"
 @Field static final java.util.regex.Pattern TYPED_ID = java.util.regex.Pattern.compile(
     "^[a-z][a-z0-9_]{1,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\$"
 )
@@ -652,11 +653,16 @@ private boolean publishObservation(
             value: observation.uncertainty ?: "none")
         projection.sendEvent(name: fixedAttribute(projectionId, "contradiction"),
             value: observation.contradiction_status)
-        projection.sendEvent(name: fixedAttribute(projectionId, "observedAt"), value: observation.observed_at)
-        projection.sendEvent(name: fixedAttribute(projectionId, "sourceEventAt"), value: observation.observed_at)
-        projection.sendEvent(name: fixedAttribute(projectionId, "derivedAt"), value: observation.derived_at)
-        projection.sendEvent(name: fixedAttribute(projectionId, "receivedAt"), value: receivedAt)
-        projection.sendEvent(name: fixedAttribute(projectionId, "expiresAt"), value: observation.expires_at)
+        projection.sendEvent(name: fixedAttribute(projectionId, "observedAt"),
+            value: timestampWireValue(observation.observed_at))
+        projection.sendEvent(name: fixedAttribute(projectionId, "sourceEventAt"),
+            value: timestampWireValue(observation.observed_at))
+        projection.sendEvent(name: fixedAttribute(projectionId, "derivedAt"),
+            value: timestampWireValue(observation.derived_at))
+        projection.sendEvent(name: fixedAttribute(projectionId, "receivedAt"),
+            value: timestampWireValue(receivedAt))
+        projection.sendEvent(name: fixedAttribute(projectionId, "expiresAt"),
+            value: timestampWireValue(observation.expires_at))
         projection.sendEvent(name: fixedAttribute(projectionId, "sequence"), value: observation.sequence)
         projection.sendEvent(name: fixedAttribute(projectionId, "unit"), value: observation.unit ?: "none")
         projection.sendEvent(name: fixedAttribute(projectionId, "registrationPolicyId"),
@@ -673,6 +679,11 @@ private boolean publishObservation(
         failClosedActionable(projectionId, projection)
         return false
     }
+}
+
+private String timestampWireValue(Object value) {
+    Date timestamp = parseTimestamp(value)
+    return timestamp == null ? null : TIMESTAMP_WIRE_PREFIX + timestamp.toInstant().toString()
 }
 
 private void failClosedActionable(String projectionId, projection) {

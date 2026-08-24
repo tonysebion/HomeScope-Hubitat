@@ -1,17 +1,17 @@
 {
   "packageName": "HomeScope",
   "author": "HomeScope",
-  "version": "0.1.11",
-  "dateReleased": "2026-08-23",
-  "licenseFile": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.11/LICENSE",
-  "releaseNotes": "Recognize a complete, current HomeScope Observation Bridge Child snapshot as one canonical projected-observation record. Incomplete, expired, non-actionable, malformed, or unexpected child state fails closed to ordinary read-only attribute evidence. No route, command, configuration, automation, credential, event-delivery, or scope authority changes.",
+  "version": "0.1.12",
+  "dateReleased": "2026-08-24",
+  "licenseFile": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.12/LICENSE",
+  "releaseNotes": "Preserve the five projection timestamps across Hubitat attribute localization by storing an exact lowercase RFC3339 wire envelope and canonicalizing every admitted instant to reader-compatible UTC. Localized, raw, malformed, incomplete, expired, and non-actionable state still fails closed. No route, command, configuration, automation, credential, event-delivery, or scope authority changes.",
   "documentationLink": "https://github.com/tonysebion/HomeScope-Hubitat/blob/main/docs/hubitat-package-installation.md",
   "apps": [
     {
       "id": "364e42a4-52c0-4a2a-9a0c-c3d6ceb23a3e",
       "name": "HomeScope Read Connector",
       "namespace": "homescope",
-      "location": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.11/apps/HomeScopeReadConnector.groovy",
+      "location": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.12/apps/HomeScopeReadConnector.groovy",
       "required": true,
       "oauth": true
     },
@@ -19,7 +19,7 @@
       "id": "4ca09fce-827a-4ebe-ac34-16966cb606a3",
       "name": "HomeScope Observation Bridge",
       "namespace": "homescope",
-      "location": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.11/apps/HomeScopeObservationBridge.groovy",
+      "location": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.12/apps/HomeScopeObservationBridge.groovy",
       "required": true,
       "oauth": true
     }
@@ -29,7 +29,7 @@
       "id": "715eb0c0-bd03-48a1-9f5e-17028c4b7ebd",
       "name": "HomeScope Observation Bridge Child",
       "namespace": "homescope",
-      "location": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.11/drivers/HomeScopeObservationBridgeChild.groovy",
+      "location": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.12/drivers/HomeScopeObservationBridgeChild.groovy",
       "required": true
     }
   ]
