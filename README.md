@@ -14,11 +14,12 @@ The read connector and observation bridge intentionally remain separate apps wit
 The package does not include Maker API access, device commands, rule changes, generic proxying, or unattended
 self-update code.
 
-Version `0.1.8` keeps the fail-closed owner profiles and bounded Hubitat runtime identifiers from earlier
-releases. It recognizes standard IPv4-mapped IPv6 forms only when the embedded address satisfies the existing
-private-LAN policy; mapped public and other non-private forms remain rejected. The change adds no route,
-response field, device command, configuration, credential, publication, event-delivery, or scope authority.
-Installation, authorization, device selection, and live requests remain separate owner-controlled steps.
+Version `0.1.9` keeps the fail-closed owner profiles, bounded Hubitat runtime identifiers, and private-LAN
+admission rules from earlier releases. It returns only fixed, content-free reasons when the remote address,
+Host header, or Hubitat request context fails that existing LAN guard; no address or Host value is returned.
+The change adds no network range, route, device command, configuration, credential, publication,
+event-delivery, or scope authority. Installation, authorization, device selection, and live requests remain
+separate owner-controlled steps.
 
 After updating from a release before 0.1.3, existing Read Connector selections are intentionally not reused. The app starts in
 **Safe empty** and requires fresh owner approval. Do not downgrade after saving the new profile because older code
