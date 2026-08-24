@@ -32,6 +32,7 @@ mappings {
 @Field static final String CONNECTOR_ID = "homescope.hubitat.read"
 @Field static final String CONNECTOR_VERSION = "1.0.0"
 @Field static final String CONTRACT_VERSION = "1.0.0"
+@Field static final String TIMESTAMP_WIRE_PREFIX = "rfc3339:"
 @Field static final int MAX_PAGE_RECORDS = 250
 @Field static final int MAX_PAGE_BYTES = 262144
 @Field static final int PAGE_CONTENT_BUDGET = 200000
@@ -1314,12 +1315,17 @@ private Map projectedObservationRecord(device, String observedAt, String coverag
 
     Long sequence = projectionSequence(values.sequence)
     Boolean value = values.value == "true" ? true : values.value == "false" ? false : null
-    Date observationTime = projectionTimestamp(values.observedAt)
-    Date sourceEventTime = projectionTimestamp(values.sourceEventAt)
-    Date derivedTime = projectionTimestamp(values.derivedAt)
-    Date receivedTime = projectionTimestamp(values.receivedAt)
-    Date expiryTime = projectionTimestamp(values.expiresAt)
-    Date snapshotTime = projectionTimestamp(observedAt)
+    String observationTimestamp = projectionTimestamp(values.observedAt)
+    String sourceEventTimestamp = projectionTimestamp(values.sourceEventAt)
+    String derivedTimestamp = projectionTimestamp(values.derivedAt)
+    String receivedTimestamp = projectionTimestamp(values.receivedAt)
+    String expiryTimestamp = projectionTimestamp(values.expiresAt)
+    Date observationTime = parseEventTime(observationTimestamp)
+    Date sourceEventTime = parseEventTime(sourceEventTimestamp)
+    Date derivedTime = parseEventTime(derivedTimestamp)
+    Date receivedTime = parseEventTime(receivedTimestamp)
+    Date expiryTime = parseEventTime(expiryTimestamp)
+    Date snapshotTime = parseEventTime(observedAt)
     if (
         sequence == null || value == null || observationTime == null || sourceEventTime == null ||
         derivedTime == null || receivedTime == null || expiryTime == null || snapshotTime == null ||
@@ -1330,8 +1336,8 @@ private Map projectedObservationRecord(device, String observedAt, String coverag
         kind: "hubitat.projected-observation",
         record_id: values.recordId,
         native_id: boundedText(values.nativeId),
-        observed_at: values.observedAt,
-        source_event_at: values.sourceEventAt,
+        observed_at: observationTimestamp,
+        source_event_at: sourceEventTimestamp,
         provenance_refs: [values.provenance],
         coverage_ref: coverageId,
         confidence: values.confidence,
@@ -1345,17 +1351,17 @@ private Map projectedObservationRecord(device, String observedAt, String coverag
         value: value,
         availability: values.availability,
         uncertainty: values.uncertainty == "none" ? null : boundedText(values.uncertainty),
-        expires_at: values.expiresAt,
+        expires_at: expiryTimestamp,
         sequence: sequence,
         independence: values.independence
     ]
     record.native_extensions = [
         actionable: true,
         contradiction_status: values.contradiction,
-        derived_at: values.derivedAt,
+        derived_at: derivedTimestamp,
         health: values.health,
         projection_coverage_ref: values.coverageRef,
-        received_at: values.receivedAt,
+        received_at: receivedTimestamp,
         registration_policy_id: boundedText(values.registrationPolicyId),
         registration_policy_version: boundedText(values.registrationPolicyVersion),
         schema_version: values.schemaVersion,
@@ -1379,8 +1385,10 @@ private Long projectionSequence(String value) {
     }
 }
 
-private Date projectionTimestamp(String value) {
-    return parseEventTime(value)
+private String projectionTimestamp(String value) {
+    if (value == null || !value.startsWith(TIMESTAMP_WIRE_PREFIX)) return null
+    String timestamp = value.substring(TIMESTAMP_WIRE_PREFIX.length())
+    return parseEventTime(timestamp) == null ? null : timestamp
 }
 
 private List<Map> modeRecords(String observedAt, String coverageId) {
