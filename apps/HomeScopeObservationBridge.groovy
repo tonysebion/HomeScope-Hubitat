@@ -118,6 +118,8 @@ def mainPage() {
     Set<String> selected = ownerSelectedProjectionIds()
     Set<String> confirmed = confirmedProjectionIds()
     boolean selectionConfirmed = selected != null && !selected.isEmpty() && selected == confirmed
+    boolean revealCredential = state.revealObservationCredentialOnce == true
+    state.remove("revealObservationCredentialOnce")
     invalidateInactiveProjectionChildren(activeProjectionRegistry())
     dynamicPage(name: "mainPage", title: "HomeScope Observation Bridge", install: true, uninstall: true) {
         section("Owner-selected advisory projections") {
@@ -150,8 +152,17 @@ def mainPage() {
             paragraph "This credential is separate from the HomeScope read connector and grants only the fixed " +
                 "registered-scalar POST route. Copy both values only into the approved local secret store."
             if (state.accessToken) {
-                paragraph "HOMESCOPE_HUBITAT_OBSERVATION_URL: ${getFullLocalApiServerUrl()}"
-                paragraph "HOMESCOPE_HUBITAT_OBSERVATION_TOKEN (approved local secret store only): ${state.accessToken}"
+                if (revealCredential) {
+                    paragraph "HOMESCOPE_HUBITAT_OBSERVATION_URL: ${getFullLocalApiServerUrl()}"
+                    paragraph "HOMESCOPE_HUBITAT_OBSERVATION_TOKEN (approved local secret store only): ${state.accessToken}"
+                } else {
+                    paragraph "The observation API URL and access token are hidden. Reveal only when copying them locally."
+                    input(
+                        name: "revealObservationAccessCredential",
+                        type: "button",
+                        title: "Reveal observation API URL and access token once"
+                    )
+                }
                 input(
                     name: "rotateObservationAccessToken",
                     type: "button",
@@ -169,11 +180,13 @@ def mainPage() {
 }
 
 def installed() {
+    state.remove("revealObservationCredentialOnce")
     ensureBridgeCredential()
     initializeBridge()
 }
 
 def updated() {
+    state.remove("revealObservationCredentialOnce")
     unsubscribe()
     unschedule()
     ensureBridgeCredential()
@@ -181,6 +194,7 @@ def updated() {
 }
 
 def uninstalled() {
+    state.remove("revealObservationCredentialOnce")
     unschedule()
     atomicState.remove("bridgeState")
     atomicState.remove("projections")
@@ -193,6 +207,13 @@ def uninstalled() {
 }
 
 def appButtonHandler(String buttonName) {
+    state.remove("revealObservationCredentialOnce")
+    if (buttonName == "revealObservationAccessCredential") {
+        if (state.accessToken) {
+            state.revealObservationCredentialOnce = true
+        }
+        return
+    }
     if (buttonName == "confirmProjectionSelection") {
         Set<String> selected = ownerSelectedProjectionIds()
         if (selected == null || selected.isEmpty()) {
@@ -210,6 +231,9 @@ def appButtonHandler(String buttonName) {
             state.remove("accessToken")
         }
         ensureBridgeCredential()
+        if (state.accessToken) {
+            state.revealObservationCredentialOnce = true
+        }
     }
 }
 
