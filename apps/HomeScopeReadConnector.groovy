@@ -1284,7 +1284,9 @@ private Map projectedObservationRecord(device, String observedAt, String coverag
     statesByName.each { String name, Object current ->
         Object value = readDeviceProperty(current, "value")
         if (value == null) return null
-        values[name.substring("observation".length()).uncapitalize()] = value.toString()
+        String suffix = name.substring("observation".length())
+        String key = suffix.substring(0, 1).toLowerCase() + suffix.substring(1)
+        values[key] = value.toString()
     }
     if (values.size() != required.size()) return null
 
@@ -1300,10 +1302,10 @@ private Map projectedObservationRecord(device, String observedAt, String coverag
         values.registrationPolicyVersion != "1.0.0" ||
         values.originEcosystem != "camera" ||
         values.unit != "none" ||
-        values.uncertainty !in ["none", "Partial camera occlusion", "Conflicting bridge state."] ||
-        values.freshness !in ["current", "aging"] || values.availability != "available" ||
-        values.confidence !in ["confirmed", "high", "medium", "low"] ||
-        values.contradiction !in ["none", "resolved"] || values.health != "available" ||
+        !["none", "Partial camera occlusion", "Conflicting bridge state."].contains(values.uncertainty) ||
+        !["current", "aging"].contains(values.freshness) || values.availability != "available" ||
+        !["confirmed", "high", "medium", "low"].contains(values.confidence) ||
+        !["none", "resolved"].contains(values.contradiction) || values.health != "available" ||
         values.independence != "same-origin" || values.coverageRef != "coverage.projection" ||
         !validProjectionTypedId(values.recordId) || !validProjectionTypedId(values.projectionId) ||
         !validProjectionTypedId(values.originRepresentationId) ||

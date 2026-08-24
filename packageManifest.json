@@ -2,7 +2,7 @@
   "packageName": "HomeScope",
   "author": "HomeScope",
   "version": "0.1.11",
-  "dateReleased": "2026-08-24",
+  "dateReleased": "2026-08-23",
   "licenseFile": "https://raw.githubusercontent.com/tonysebion/HomeScope-Hubitat/hubitat-v0.1.11/LICENSE",
   "releaseNotes": "Recognize a complete, current HomeScope Observation Bridge Child snapshot as one canonical projected-observation record. Incomplete, expired, non-actionable, malformed, or unexpected child state fails closed to ordinary read-only attribute evidence. No route, command, configuration, automation, credential, event-delivery, or scope authority changes.",
   "documentationLink": "https://github.com/tonysebion/HomeScope-Hubitat/blob/main/docs/hubitat-package-installation.md",
