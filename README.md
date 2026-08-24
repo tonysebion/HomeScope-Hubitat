@@ -14,14 +14,12 @@ The read connector and observation bridge intentionally remain separate apps wit
 The package does not include Maker API access, device commands, rule changes, generic proxying, or unattended
 self-update code.
 
-Version `0.1.10` keeps the fail-closed owner profiles and bounded Hubitat runtime identifiers from earlier
-releases. The Observation Bridge now consumes Hubitat's parsed `request.JSON` Map and applies its 4,096-byte
-limit to the post-parse canonical UTF-8 application representation. It no longer claims access to servlet
-caller-IP, original-Host, raw-body, `Content-Length`, or syntactic duplicate-key information that Hubitat does
-not expose to the app. Hubitat OAuth remains the dedicated token boundary; the separate HomeScope publisher
-admits only a literal private-LAN app-instance URL and refuses redirects. The change adds no route, schema,
-device command, configuration, automation, generic proxy, physical-device, credential, event-delivery, or
-scope authority. Installation, authorization, device selection, and live requests remain owner-controlled.
+Version `0.1.11` lets the Read Connector recognize a complete, current HomeScope Observation Bridge Child
+snapshot as one canonical projected-observation record. Recognition is deliberately closed: incomplete,
+expired, non-actionable, malformed, or unexpected child state remains ordinary read-only attribute evidence
+and cannot be treated as an actionable projection. The change adds no route, device command, configuration,
+automation, generic proxy, physical-device, credential, event-delivery, or scope authority. Installation,
+authorization, device selection, and live requests remain owner-controlled.
 
 After updating from a release before 0.1.3, existing Read Connector selections are intentionally not reused. The app starts in
 **Safe empty** and requires fresh owner approval. Do not downgrade after saving the new profile because older code

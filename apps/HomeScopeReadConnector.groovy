@@ -456,7 +456,7 @@ def state() {
     String coverageId = coverageIdFor("state")
     List<Map> records = []
     if (stateEnabled && selection.admitted_count > 0) {
-        selection.devices.each { device -> records.addAll(attributeRecords(device, observedAt, coverageId)) }
+        selection.devices.each { device -> records.addAll(stateRecordsForDevice(device, observedAt, coverageId)) }
     }
     if (modesEnabled) {
         records.addAll(modeRecords(observedAt, coverageId))
@@ -1241,6 +1241,144 @@ private List<Map> attributeRecords(device, String observedAt, String coverageId)
         }
         return record
     }
+}
+
+private List<String> observationProjectionAttributeNames() {
+    return [
+        "observationKind", "observationSchemaVersion", "observationRecordId", "observationNativeId",
+        "observationNativeExtensions", "observationProjectionId", "observationIdempotencyId",
+        "observationOriginEcosystem", "observationOriginRepresentationId", "observationOriginObservationId",
+        "observationValue", "observationFreshness", "observationAvailability", "observationConfidence",
+        "observationProvenance", "observationProvenanceRefs", "observationCoverageRef",
+        "observationUncertainty", "observationContradiction", "observationObservedAt",
+        "observationSourceEventAt", "observationDerivedAt", "observationReceivedAt", "observationExpiresAt",
+        "observationSequence", "observationUnit", "observationRegistrationPolicyId",
+        "observationRegistrationPolicyVersion", "observationHealth", "observationIndependence",
+        "observationActionable"
+    ]
+}
+
+private boolean isObservationProjectionDevice(device) {
+    String typeName = boundedText(readDeviceProperty(device, "typeName"))
+    Set<String> names = supportedAttributes(device).collect { attribute -> attribute.name.toString() } as Set
+    return typeName == "HomeScope Observation Bridge Child" &&
+        names == observationProjectionAttributeNames() as Set
+}
+
+private List<Map> stateRecordsForDevice(device, String observedAt, String coverageId) {
+    if (!isObservationProjectionDevice(device)) {
+        return attributeRecords(device, observedAt, coverageId)
+    }
+    Map projection = projectedObservationRecord(device, observedAt, coverageId)
+    return projection == null ? attributeRecords(device, observedAt, coverageId) : [projection]
+}
+
+private Map projectedObservationRecord(device, String observedAt, String coverageId) {
+    Set<String> required = observationProjectionAttributeNames() as Set
+    List states = currentStates(device).findAll { current -> required.contains(current.name.toString()) }
+    Map<String, Object> statesByName = [:]
+    states.each { current -> statesByName[current.name.toString()] = current }
+    if (states.size() != required.size() || statesByName.size() != required.size()) return null
+
+    Map<String, String> values = [:]
+    statesByName.each { String name, Object current ->
+        Object value = readDeviceProperty(current, "value")
+        if (value == null) return null
+        values[name.substring("observation".length()).uncapitalize()] = value.toString()
+    }
+    if (values.size() != required.size()) return null
+
+    if (values.actionable != "true") return null
+
+    if (
+        values.kind != "hubitat.projected-observation" || values.schemaVersion != CONTRACT_VERSION ||
+        values.recordId != values.idempotencyId || values.provenanceRefs != values.provenance ||
+        values.nativeExtensions != "{}" ||
+        values.projectionId != "virtual_sensor:55555555-5555-4555-8555-555555555555" ||
+        values.nativeId != "homescope-observation-vehicle-present" ||
+        values.registrationPolicyId != "homescope-managed-targets" ||
+        values.registrationPolicyVersion != "1.0.0" ||
+        values.originEcosystem != "camera" ||
+        values.unit != "none" ||
+        values.uncertainty !in ["none", "Partial camera occlusion", "Conflicting bridge state."] ||
+        values.freshness !in ["current", "aging"] || values.availability != "available" ||
+        values.confidence !in ["confirmed", "high", "medium", "low"] ||
+        values.contradiction !in ["none", "resolved"] || values.health != "available" ||
+        values.independence != "same-origin" || values.coverageRef != "coverage.projection" ||
+        !validProjectionTypedId(values.recordId) || !validProjectionTypedId(values.projectionId) ||
+        !validProjectionTypedId(values.originRepresentationId) ||
+        !validProjectionTypedId(values.originObservationId) || !validProjectionTypedId(values.provenance)
+    ) return null
+
+    Long sequence = projectionSequence(values.sequence)
+    Boolean value = values.value == "true" ? true : values.value == "false" ? false : null
+    Date observationTime = projectionTimestamp(values.observedAt)
+    Date sourceEventTime = projectionTimestamp(values.sourceEventAt)
+    Date derivedTime = projectionTimestamp(values.derivedAt)
+    Date receivedTime = projectionTimestamp(values.receivedAt)
+    Date expiryTime = projectionTimestamp(values.expiresAt)
+    Date snapshotTime = projectionTimestamp(observedAt)
+    if (
+        sequence == null || value == null || observationTime == null || sourceEventTime == null ||
+        derivedTime == null || receivedTime == null || expiryTime == null || snapshotTime == null ||
+        sourceEventTime != observationTime || derivedTime.before(observationTime) ||
+        receivedTime.before(derivedTime) || !expiryTime.after(receivedTime) || !expiryTime.after(snapshotTime)
+    ) return null
+    Map record = [
+        kind: "hubitat.projected-observation",
+        record_id: values.recordId,
+        native_id: boundedText(values.nativeId),
+        observed_at: values.observedAt,
+        source_event_at: values.sourceEventAt,
+        provenance_refs: [values.provenance],
+        coverage_ref: coverageId,
+        confidence: values.confidence,
+        freshness: values.freshness,
+        projection_id: values.projectionId,
+        idempotency_id: values.idempotencyId,
+        origin_ecosystem: boundedText(values.originEcosystem),
+        origin_representation_id: values.originRepresentationId,
+        origin_observation_id: values.originObservationId,
+        evidence_ref: values.provenance,
+        value: value,
+        availability: values.availability,
+        uncertainty: values.uncertainty == "none" ? null : boundedText(values.uncertainty),
+        expires_at: values.expiresAt,
+        sequence: sequence,
+        independence: values.independence
+    ]
+    record.native_extensions = [
+        actionable: true,
+        contradiction_status: values.contradiction,
+        derived_at: values.derivedAt,
+        health: values.health,
+        projection_coverage_ref: values.coverageRef,
+        received_at: values.receivedAt,
+        registration_policy_id: boundedText(values.registrationPolicyId),
+        registration_policy_version: boundedText(values.registrationPolicyVersion),
+        schema_version: values.schemaVersion,
+        unit: values.unit == "none" ? null : boundedText(values.unit)
+    ]
+    return record
+}
+
+private boolean validProjectionTypedId(String value) {
+    return value != null && value ==~ /^[a-z][a-z0-9_]{1,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+}
+
+private Long projectionSequence(String value) {
+    if (value == null || !(value ==~ /^(?:0|[1-9][0-9]{0,15})$/)) return null
+    try {
+        BigDecimal sequence = new BigDecimal(value)
+        return sequence.stripTrailingZeros().scale() <= 0 && sequence >= BigDecimal.ZERO &&
+            sequence <= 9007199254740991G ? sequence.longValue() : null
+    } catch (NumberFormatException ignored) {
+        return null
+    }
+}
+
+private Date projectionTimestamp(String value) {
+    return parseEventTime(value)
 }
 
 private List<Map> modeRecords(String observedAt, String coverageId) {
