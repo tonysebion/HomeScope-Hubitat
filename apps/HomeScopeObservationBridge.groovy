@@ -329,7 +329,8 @@ def receiveObservation() {
 }
 
 private Map readInboundRequest() {
-    if (!isPrivateLanRequest()) return rejected(403, "lan_origin_required")
+    Map lanVerdict = privateLanRequestVerdict()
+    if (!lanVerdict.accepted) return lanVerdict
     try {
         String declaredLength = request.getHeader("Content-Length")
         if (!(declaredLength ==~ /^[0-9]{1,10}$/)) return rejected(411, "content_length_required")
@@ -381,13 +382,19 @@ private byte[] readBoundedRequestBytes() {
     return bounded.toByteArray()
 }
 
-private boolean isPrivateLanRequest() {
+private Map privateLanRequestVerdict() {
     try {
         String remoteAddress = request.getRemoteAddr() as String
+        if (!isPrivateAddress(remoteAddress)) {
+            return rejected(403, "lan_remote_address_required")
+        }
         String hostHeader = request.getHeader("Host") as String
-        return isPrivateAddress(remoteAddress) && isPrivateHost(hostHeader)
+        if (!isPrivateHost(hostHeader)) {
+            return rejected(403, "lan_host_header_required")
+        }
+        return [accepted: true, status: 200]
     } catch (ignored) {
-        return false
+        return rejected(403, "lan_request_context_unavailable")
     }
 }
 
