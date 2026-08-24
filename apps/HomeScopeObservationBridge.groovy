@@ -5,9 +5,7 @@
  * Projection IDs, virtual entities, attributes, and event names are fixed here.
  */
 import groovy.json.JsonOutput
-import groovy.json.JsonSlurper
 import groovy.transform.Field
-import java.io.ByteArrayOutputStream
 
 definition(
     name: "HomeScope Observation Bridge",
@@ -47,7 +45,7 @@ mappings {
 @Field static final Set<String> SAFE_UNCERTAINTY_VALUES = [
     "Partial camera occlusion", "Conflicting bridge state."
 ] as Set
-@Field static final Integer MAX_REQUEST_BYTES = 4096
+@Field static final Integer MAX_PARSED_REQUEST_BYTES = 4096
 @Field static final Integer MAX_CONTENT_NODES = 128
 @Field static final Integer MAX_RECENT_IDEMPOTENCY = 32
 @Field static final Integer MAX_TEXT_LENGTH = 128
@@ -289,7 +287,6 @@ private void invalidateInactiveProjectionChildren(Map active) {
 }
 
 def receiveObservation() {
-    invalidateInactiveProjectionChildren(activeProjectionRegistry())
     Map inbound = readInboundRequest()
     if (!inbound.accepted) {
         return renderRejection(inbound.status as Integer, inbound.reason as String)
@@ -304,6 +301,7 @@ def receiveObservation() {
     if (!replayVerdict.accepted) {
         return renderRejection(replayVerdict.status as Integer, replayVerdict.reason as String)
     }
+    invalidateInactiveProjectionChildren(activeProjectionRegistry())
     if (replayVerdict.replay) {
         return renderReceipt(body, replayVerdict.received_at as String)
     }
@@ -329,232 +327,27 @@ def receiveObservation() {
 }
 
 private Map readInboundRequest() {
-    Map lanVerdict = privateLanRequestVerdict()
-    if (!lanVerdict.accepted) return lanVerdict
+    byte[] canonicalBytes = null
     try {
-        String declaredLength = request.getHeader("Content-Length")
-        if (!(declaredLength ==~ /^[0-9]{1,10}$/)) return rejected(411, "content_length_required")
-        Long contentLength = declaredLength as Long
-        if (contentLength <= 0L || contentLength > MAX_REQUEST_BYTES) {
-            return rejected(413, "request_too_large")
-        }
-        byte[] rawBytes = readBoundedRequestBytes()
-        if (rawBytes == null) return rejected(413, "request_too_large")
-        if (rawBytes.length != contentLength || rawBytes.length > MAX_REQUEST_BYTES) {
-            return rejected(413, "request_too_large")
-        }
-        String raw = new String(rawBytes, "UTF-8")
-        if (!isExactUtf8RoundTrip(rawBytes, raw)) return rejected(400, "malformed_json")
-        if (hasDuplicateObjectKeys(raw)) return rejected(400, "duplicate_key")
-        Object decoded = new JsonSlurper().parseText(raw)
+        // Hubitat owns OAuth and HTTP framing for mapped app endpoints. HomeScope's
+        // adjacent publisher separately admits only its fixed private-LAN target.
+        Object decoded = request.JSON
         if (!(decoded instanceof Map)) return rejected(400, "malformed_json")
+        canonicalBytes = JsonOutput.toJson(decoded).getBytes("UTF-8")
+        if (canonicalBytes.length > MAX_PARSED_REQUEST_BYTES) {
+            return rejected(413, "request_too_large")
+        }
         return [accepted: true, status: 200, body: decoded as Map]
     } catch (ignored) {
         return rejected(400, "malformed_json")
-    }
-}
-
-private boolean isExactUtf8RoundTrip(byte[] rawBytes, String decoded) {
-    if (rawBytes == null || decoded == null) return false
-    byte[] encoded = decoded.getBytes("UTF-8")
-    if (encoded.length != rawBytes.length) return false
-    for (Integer index = 0; index < rawBytes.length; index += 1) {
-        if (encoded[index] != rawBytes[index]) return false
-    }
-    return true
-}
-
-private byte[] readBoundedRequestBytes() {
-    def input = request.getInputStream()
-    if (!input) return null
-    ByteArrayOutputStream bounded = new ByteArrayOutputStream(MAX_REQUEST_BYTES + 1)
-    byte[] chunk = new byte[512]
-    Integer total = 0
-    while (total <= MAX_REQUEST_BYTES) {
-        Integer remaining = (MAX_REQUEST_BYTES + 1) - total
-        Integer count = input.read(chunk, 0, Math.min(chunk.length, remaining))
-        if (count < 0) break
-        if (count == 0) return null
-        bounded.write(chunk, 0, count)
-        total += count
-    }
-    if (total > MAX_REQUEST_BYTES) return null
-    return bounded.toByteArray()
-}
-
-private Map privateLanRequestVerdict() {
-    try {
-        String remoteAddress = request.getRemoteAddr() as String
-        if (!isPrivateAddress(remoteAddress)) {
-            return rejected(403, "lan_remote_address_required")
-        }
-        String hostHeader = request.getHeader("Host") as String
-        if (!isPrivateHost(hostHeader)) {
-            return rejected(403, "lan_host_header_required")
-        }
-        return [accepted: true, status: 200]
-    } catch (ignored) {
-        return rejected(403, "lan_request_context_unavailable")
-    }
-}
-
-private boolean isPrivateHost(String hostHeader) {
-    if (!hostHeader) return false
-    String host = hostHeader.trim().toLowerCase()
-    if (host.startsWith("[")) {
-        Integer closing = host.indexOf("]")
-        if (closing < 0) return false
-        String suffix = host.substring(closing + 1)
-        if (!validHostPort(suffix)) return false
-        host = host.substring(1, closing)
-    } else if (host.count(":") == 1) {
-        String suffix = host.substring(host.indexOf(":"))
-        if (!validHostPort(suffix)) return false
-        host = host.substring(0, host.indexOf(":"))
-    } else if (host.count(":") > 1) {
-        return false
-    }
-    return isPrivateAddress(host)
-}
-
-private boolean validHostPort(String suffix) {
-    if (!suffix) return true
-    if (!(suffix ==~ /^:[0-9]{1,5}$/)) return false
-    Integer port = suffix.substring(1) as Integer
-    return port >= 1 && port <= 65535
-}
-
-private boolean isPrivateAddress(String value) {
-    if (!value) return false
-    String address = value.trim().toLowerCase()
-    if (address.contains(":")) {
-        List<Integer> mappedIpv4 = mappedIpv4Octets(address)
-        if (mappedIpv4 != null) return isPrivateIpv4Octets(mappedIpv4)
-        return isPrivateIpv6Literal(address)
-    }
-    List<Integer> octets = parseIpv4Octets(address)
-    return octets != null && isPrivateIpv4Octets(octets)
-}
-
-private List<Integer> parseIpv4Octets(String address) {
-    if (!address) return null
-    List<String> parts = address.split(/\./, -1) as List<String>
-    if (parts.size() != 4 || !parts.every { String item ->
-        item ==~ /^[0-9]{1,3}$/ && (item == "0" || !item.startsWith("0"))
-    }) return null
-    List<Integer> octets = parts.collect { String item -> item as Integer }
-    if (octets.any { Integer item -> item > 255 }) return null
-    return octets
-}
-
-private boolean isPrivateIpv4Octets(List<Integer> octets) {
-    if (octets == null || octets.size() != 4) return false
-    return octets[0] == 10 || octets[0] == 127 ||
-        (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31) ||
-        (octets[0] == 192 && octets[1] == 168) ||
-        (octets[0] == 169 && octets[1] == 254)
-}
-
-private List<Integer> parseIpv6Hextets(String address) {
-    if (!address || !(address ==~ /^[0-9a-f:]+$/) || address.count("::") > 1) return null
-    List<String> groups = []
-    if (address.contains("::")) {
-        List<String> sides = address.split(/::/, -1) as List<String>
-        if (sides.size() != 2) return null
-        List<String> left = sides[0] ? (sides[0].split(/:/, -1) as List<String>) : []
-        List<String> right = sides[1] ? (sides[1].split(/:/, -1) as List<String>) : []
-        Integer missing = 8 - left.size() - right.size()
-        if (missing < 1) return null
-        groups.addAll(left)
-        missing.times { groups.add("0") }
-        groups.addAll(right)
-    } else {
-        groups = address.split(/:/, -1) as List<String>
-        if (groups.size() != 8) return null
-    }
-    if (groups.size() != 8 || !groups.every { String group -> group ==~ /^[0-9a-f]{1,4}$/ }) {
-        return null
-    }
-    return groups.collect { String group -> Integer.parseInt(group, 16) }
-}
-
-private List<Integer> mappedIpv4Octets(String address) {
-    if (!address || address.contains("%")) return null
-    String hexadecimal = address
-    List<Integer> dotted = null
-    if (address.contains(".")) {
-        Integer finalColon = address.lastIndexOf(":")
-        if (finalColon < 0 || address.substring(0, finalColon).contains(".")) return null
-        dotted = parseIpv4Octets(address.substring(finalColon + 1))
-        if (dotted == null) return null
-        hexadecimal = address.substring(0, finalColon) + ":0:0"
-    }
-    List<Integer> hextets = parseIpv6Hextets(hexadecimal)
-    if (hextets == null || !hextets.take(5).every { Integer group -> group == 0 } ||
-        hextets[5] != 0xffff) return null
-    if (dotted != null) return dotted
-    return [
-        (hextets[6] >> 8) & 0xff,
-        hextets[6] & 0xff,
-        (hextets[7] >> 8) & 0xff,
-        hextets[7] & 0xff
-    ]
-}
-
-private boolean isPrivateIpv6Literal(String address) {
-    List<Integer> hextets = parseIpv6Hextets(address)
-    if (hextets == null) return false
-    boolean loopback = hextets.take(7).every { Integer group -> group == 0 } && hextets[7] == 1
-    Integer first = hextets[0]
-    return loopback || (first & 0xfe00) == 0xfc00 || (first & 0xffc0) == 0xfe80
-}
-
-private boolean hasDuplicateObjectKeys(String raw) {
-    List<Set<String>> scopes = []
-    Integer index = 0
-    while (index < raw.length()) {
-        Character current = raw.charAt(index)
-        if (current == '{'.charAt(0)) {
-            scopes.add([] as Set<String>)
-            index += 1
-            continue
-        }
-        if (current == '}'.charAt(0)) {
-            if (!scopes.isEmpty()) scopes.remove(scopes.size() - 1)
-            index += 1
-            continue
-        }
-        if (current != '"'.charAt(0)) {
-            index += 1
-            continue
-        }
-        Integer start = index
-        index += 1
-        boolean escaped = false
-        while (index < raw.length()) {
-            Character item = raw.charAt(index)
-            if (escaped) {
-                escaped = false
-            } else if (item == '\\'.charAt(0)) {
-                escaped = true
-            } else if (item == '"'.charAt(0)) {
-                break
+    } finally {
+        if (canonicalBytes != null) {
+            for (Integer index = 0; index < canonicalBytes.length; index += 1) {
+                canonicalBytes[index] = 0
             }
-            index += 1
         }
-        if (index >= raw.length()) return false
-        Integer end = index
-        Integer next = end + 1
-        while (next < raw.length() && Character.isWhitespace(raw.charAt(next))) next += 1
-        if (next < raw.length() && raw.charAt(next) == ':'.charAt(0) && !scopes.isEmpty()) {
-            String key = new JsonSlurper().parseText(raw.substring(start, end + 1)) as String
-            Set<String> keys = scopes[scopes.size() - 1]
-            if (keys.contains(key)) return true
-            keys.add(key)
-        }
-        index = end + 1
+        canonicalBytes = null
     }
-    return false
 }
 
 private Map validateRequest(Map body) {
