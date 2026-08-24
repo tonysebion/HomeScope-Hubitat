@@ -84,6 +84,10 @@ tokens, select devices, configure public access, or grant HomeScope an unattende
 Review HomeScope release notes before choosing HPM's update action. Keep **Install updates automatically when**
 set to **Never**, or keep HomeScope selected when using **Exclude** mode.
 After an update, confirm that both apps still save and that ordinary Hubitat automations continue independently.
+For version 0.1.11 or later, a selected HomeScope Observation Bridge Child is returned as one canonical
+projected-observation record only when its full snapshot is current, internally consistent, and actionable.
+Incomplete, expired, non-actionable, malformed, or unexpected child state remains ordinary read-only attribute
+evidence. This recognition does not add a command or configuration path.
 
 Before removing a configured HomeScope app, revoke or rotate its credential and determine whether its app-owned
 observation child devices must be retained. Removal is an owner action; do not delete a configured app merely to
